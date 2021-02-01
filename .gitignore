@@ -1,3 +1,7 @@
 build/
 dist/
 naspi.egg-info
+naspi/__pycache__/
+naspi/nas_monitor.log
+naspi/naspi_status_*.json
+naspi/conf.json

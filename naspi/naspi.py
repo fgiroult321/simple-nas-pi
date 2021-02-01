@@ -33,7 +33,7 @@ def main():
     valid_modes = ["system","analyze","sync","syncdelete","synclocal","syncs3","backup","init_config"]
     mode = ''
     config = ''
-    usage_message = 'nas_monitor.py -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|init_config>'
+    usage_message = 'naspi.py -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|init_config>'
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],"hm:c:",["mode=","config="])
@@ -470,72 +470,3 @@ def backup_naspi(backup,output):
 if __name__=='__main__':
     main()
     # main(sys.argv[1:])
-
-
-
-
-# ## Get disk capacity
-# logger.info("### Getting disk capacity")
-# df_out = Popen("df -kh", 
-#                             shell=True, 
-#                             stdout=PIPE,
-#                             stderr=PIPE
-#                         )
-# sleep(.2)
-# retcode = df_out.poll()
-# while retcode is None: # Process running
-#     # logger.info("### Process not finished, waiting...")
-#     sleep(1)
-#     retcode = df_out.poll()
-
-# # Here, `proc` has finished with return code `retcode`
-# if retcode != 0:
-#     """Error handling."""
-#     logger.info("### Error !")
-#     logger.info(df_out.stderr.read().decode("utf-8"))
-
-# logger.info(df_out.stdout.read().decode("utf-8"))
-
-# with df_out.stdout:
-#     for line in iter(df_out.stdout.readline, b''):
-#         if '/disks/' in line.decode("utf-8"):
-#             logger.info(line.decode("utf-8").split('%')[0])
-
-
-
-
-
-# running_procs = [
-#     Popen(['/usr/bin/my_cmd', '-i %s' % path], stdout=PIPE, stderr=PIPE)
-#     for path in '/tmp/file0 /tmp/file1 /tmp/file2'.split()]
-
-# while running_procs:
-#     for proc in running_procs:
-#         retcode = proc.poll()
-#         if retcode is not None: # Process finished.
-#             running_procs.remove(proc)
-#             break
-#         else: # No process is done, wait a bit and check again.
-#             time.sleep(.1)
-#             continue
-
-#     # Here, `proc` has finished with return code `retcode`
-#     if retcode != 0:
-#         """Error handling."""
-#     handle_results(proc.stdout)
-#    e running_procs:
-#     for proc in running_procs:
-#         retcode = proc.poll()
-#         if retcode is not None: # Process finished.
-#             running_procs.remove(proc)
-#             break
-#         else: # No process is done, wait a bit and check again.
-#             time.sleep(.1)
-#             continue
-
-#     # Here, `proc` has finished with return code `retcode`
-#     if retcode != 0:
-#         """Error handling."""
-#     handle_results(proc.stdout)
-
-
