@@ -410,6 +410,7 @@ def run_local_syncs(folder_to_sync_locally, output):
             delete = ""
             if folder['delete']:
                 delete = "--delete"
+            ret,msg = run_shell_command('mkdir -p {}'.format(folder['dest_folder']))
             ret,msg = run_shell_command('rsync -aqs {} {} {}'.format(folder['source_folder'],folder['dest_folder'],delete))
             if ret != 0:
                 success = False

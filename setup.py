@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(name='naspi',
-      version='0.1.2',
+      version='0.1.3',
       description='Simple NAS for Raspberry Pi',
       long_description=long_description,
       url='https://github.com/fgiroult321/simple-nas-pi',
@@ -21,4 +21,8 @@ setup(name='naspi',
         "Operating System :: POSIX :: Linux",
       ],
       python_requires='>=3.6',
+      install_requires=[
+        'boto3',
+        'awscli'
+      ],
       zip_safe=False)

@@ -1,0 +1,307 @@
+#====================================================================================================
+# AWS CloudFormation script to deploy Naspi components on AWS
+# 
+# Version : v1
+# ChangeLog : Initial version
+#
+#====================================================================================================
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: deploy Naspi components on AWS
+
+Parameters:
+  NaspiBucketName:
+    Type: String
+    Description: >-
+      Bucket Name to save the content backed up from the NAS
+
+  MonitoringSchedule:
+    Type: String
+    Default: cron(0 15 ? * * *)
+    Description: >-
+      This defines the Schedule at which to trigger the Naspi monitoring function -
+      Default is daily . Cron Expressions -
+      http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions
+
+  EmailForReceivingAlerts:
+    Type: String
+    Description: >-
+      Bucket Name to save the content backed up from the NAS
+
+Resources:
+  NaspiUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "NasPiUser"
+      Policies: 
+        - PolicyName: NaspiS3Access
+          PolicyDocument: 
+            Version: '2012-10-17'
+            Statement:
+            - Sid: allows3
+              Effect: Allow
+              Action: 
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource: !Sub "arn:aws:s3:::${NaspiBucketName}/*"
+            - Sid: allows3list
+              Effect: Allow
+              Action: 
+                - s3:ListBucket
+              Resource: !Sub "arn:aws:s3:::${NaspiBucketName}"
+
+  NaspiBucket:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${NaspiBucketName}"
+      NotificationConfiguration:
+        LambdaConfigurations:
+          -
+            Function: !GetAtt NaspiMonitor.Arn
+            Event: "s3:ObjectCreated:*"
+            Filter:
+              S3Key:
+                Rules:
+                  -
+                    Name: suffix
+                    Value: json
+                  - 
+                    Name: prefix
+                    Value: "status/"
+
+  PermissionForEventsToInvokeLambdaS3:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !GetAtt
+        - NaspiMonitor
+        - Arn
+      Action: "lambda:InvokeFunction"
+      Principal: s3.amazonaws.com
+      SourceArn: !GetAtt NaspiBucket.Arn
+
+  PermissionForEventsToInvokeLambda:
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${NaspiHeartbeat}
+      Principal: events.amazonaws.com
+      SourceArn:
+        Fn::GetAtt:
+        - ScheduledRule
+        - Arn
+    Type: AWS::Lambda::Permission
+
+  ScheduledRule:
+    Properties:
+      Description: Naspi Alerts if host is unreachable
+      Name: NaspiAlerts
+      ScheduleExpression: !Ref MonitoringSchedule
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::Sub: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${NaspiHeartbeat}
+        Id:
+          Fn::Sub: ${NaspiHeartbeat}
+    Type: AWS::Events::Rule
+
+  NaspiHeartbeat:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: naspi-heartbeat
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          from botocore.exceptions import ClientError
+          import os
+          from datetime import datetime
+
+          def today_date():
+              today = datetime.today()
+              d1 = today.strftime("%Y-%m-%d")
+              return(d1)
+              
+          def lambda_handler(event, context):
+              
+              print(event)
+              subject = ''
+              bucket = os.environ['bucket']
+              snstopic = os.environ['snstopic']
+              key = "status/naspi_status_{}.json".format(today_date())
+
+              print("Bucket : {} and Key : {}".format(bucket,key))
+              
+              s3_client = boto3.client('s3')
+              
+              try:
+                  obj = s3_client.get_object(
+                      Bucket=bucket,
+                      Key=key
+                  )
+              except ClientError as e:
+                  if e.response['Error']['Code'] == 'AccessDenied':
+                      print("!!! Cant get the file, it is probably missing, alerting")
+                      subject += "NAS unreachable on day {} !".format(today_date())
+                      send_alert("Naspi Error : {}".format(subject),"Verify the NAS connection",snstopic)
+                      raise Exception("NAS unreachable !!!")
+                  else:
+                      print("Unexpected error: %s" % e)
+                      raise(e)
+                  
+              print("File {} exists, ok".format(key))
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('OK')
+              }
+
+          def send_alert(subject,message,snstopic):
+              sns_client = boto3.client('sns')
+              response = sns_client.publish(
+                  TopicArn=snstopic,
+                  Message=message,
+                  Subject=subject
+              )
+      Description: 'Naspi Heartbeat function'
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Runtime: python3.8
+      Role: !GetAtt NaspiRole.Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          bucket: !Ref NaspiBucketName
+          snstopic: !Ref SnsTopic
+
+  NaspiMonitor:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: naspi-monitor
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+
+          def lambda_handler(event, context):
+              
+              print(event)
+              bucket = event['Records'][0]['s3']['bucket']['name']
+              key = event['Records'][0]['s3']['object']['key']
+              snstopic = os.environ['snstopic']
+              
+              s3_client = boto3.client('s3')
+              
+              try:
+                  obj = s3_client.get_object(
+                      Bucket=bucket,
+                      Key=key
+                  )
+              except Exception as e:
+                  raise(e)
+                  
+              j = json.loads(obj['Body'].read())
+              print(json.dumps(j))
+              subject = ''
+              alert = False
+
+              if not j['disks'].get('all_disks_ok'):
+                  print("Errors missing disks, alerting")
+                  subject += "Disk missing - "
+                  alert = True
+              if not j['local_sync'].get('success'):
+                  print("local sync issue, alerting")
+                  subject += "Local sync failed - "
+                  alert = True
+              if not j['s3_sync'].get('success'):
+                  print("S3 sync issue, alerting")
+                  subject += "S3 sync failed - "
+                  alert = True
+
+              if alert:
+                  send_alert("Naspi Error : {}".format(subject),json.dumps(j),snstopic)
+                  
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Hello from Lambda!')
+              }
+
+          def send_alert(subject,message,snstopic):
+              sns_client = boto3.client('sns')
+              response = sns_client.publish(
+                  TopicArn=snstopic,
+                  Message=message,
+                  Subject=subject
+              )
+      Description: 'Naspi Monitor function'
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Runtime: python3.8
+      Role: !GetAtt NaspiRole.Arn
+      Timeout: 6
+      Environment:
+        Variables:
+          snstopic: !Ref SnsTopic
+
+  NaspiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: "NaspiLambdaS3Access"
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Sid: allows3
+              Effect: Allow
+              Action: s3:GetObject
+              Resource: !Sub "arn:aws:s3:::${NaspiBucketName}/status/*"
+        - PolicyName: LogsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Sid: AllowSNSPublish
+              Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref SnsTopic
+      RoleName: NaspiLambdaRole
+
+  SnsTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: 'NasPi'
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref EmailForReceivingAlerts
+
+  SNSTopicPolicy:
+      Type: 'AWS::SNS::TopicPolicy'
+      Properties:
+        Topics:
+          - !Ref SnsTopic
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 'sns:Publish' 
+              Resource: 
+                - !Ref SnsTopic
+              Condition:
+                ArnLike:
+                  aws:SourceArn: !GetAtt NaspiHeartbeat.Arn 
+              Principal:
+                Service: 'lambda.amazonaws.com' 
+              Sid: 'AllowLambdaToPublish'
