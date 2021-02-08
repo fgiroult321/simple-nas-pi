@@ -33,7 +33,7 @@ def main():
     valid_modes = ["system","analyze","sync","syncdelete","synclocal","syncs3","backup","init_config"]
     mode = ''
     config = ''
-    usage_message = 'naspi.py -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|init_config>'
+    usage_message = 'naspi -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|init_config>'
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],"hm:c:",["mode=","config="])
@@ -81,6 +81,10 @@ def main():
     NUMBER_DAYS_RETENTION = configuration.get('NUMBER_DAYS_RETENTION')
     MIN_DELAY_BETWEEN_SYNCS_SECONDS = configuration.get('MIN_DELAY_BETWEEN_SYNCS_SECONDS')
     working_dir = configuration.get('working_dir')
+
+    home_dir = os.environ['HOME']
+    global export_path_cmd
+    export_path_cmd = 'export PATH={}/.local/bin:$PATH'.format(home_dir)
 
 
     ### Logging setup
@@ -347,7 +351,7 @@ def run_s3_syncs(folders_to_sync_s3, output):
                     exclusions_flags = exclusions_flags + ' --exclude "{}/*" '.format(exclusion)
             # command = 'aws s3 sync {} {} {} --storage-class DEEP_ARCHIVE --dryrun'.format(folder['source_folder'],folder['dest_folder'],exclusions_flags)
             command = 'aws s3 sync {} {} {} --storage-class DEEP_ARCHIVE --only-show-errors'.format(folder['source_folder'],folder['dest_folder'],exclusions_flags)
-            ret,msg = run_shell_command('export PATH=/home/pi/.local/bin:$PATH; {}'.format(command))
+            ret,msg = run_shell_command('{}; {}'.format(export_path_cmd,command))
 
             if ret != 0:
                 success = False
@@ -391,7 +395,7 @@ def analyze_s3_files(folders_to_sync_s3, output):
         output['s3_sync']['files_source'] += total_file
 
         # Get s3 files count
-        ret,msg = run_shell_command('export PATH=/home/pi/.local/bin:$PATH; aws s3 ls {} --recursive --summarize | grep "Total Objects"'.format(folder['dest_folder']))
+        ret,msg = run_shell_command('{}; aws s3 ls {} --recursive --summarize | grep "Total Objects"'.format(export_path_cmd,folder['dest_folder']))
         output['s3_sync']['files_dest'] += int(msg.split(': ')[1])
 
     output['s3_sync']['files_delta'] = output['s3_sync']['files_source'] - output['s3_sync']['files_dest']
