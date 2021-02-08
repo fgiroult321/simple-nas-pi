@@ -125,8 +125,8 @@ Initially the config file is :
 
 ## Usage
 The different mode of the Cli are :
-naspi -m system : return system information cpu, ram, temp
-naspi -m synclocal : sync local folder based on local folder configuration 
-naspi -m syncs3 : sync local folder to s3 glacier deep archive
-naspi -m analyze : give local and s3 replication status
-naspi -m init_config : init a configuration file 
+* naspi -m system : return system information cpu, ram, temp
+* naspi -m synclocal : sync local folder based on local folder configuration 
+* naspi -m syncs3 : sync local folder to s3 glacier deep archive
+* naspi -m analyze : give local and s3 replication status
+* naspi -m init_config : init a configuration file 
