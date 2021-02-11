@@ -26,7 +26,7 @@ Parameters:
   EmailForReceivingAlerts:
     Type: String
     Description: >-
-      Bucket Name to save the content backed up from the NAS
+      Email address to receive the NAS alerts
 
 Resources:
   NaspiUser:
