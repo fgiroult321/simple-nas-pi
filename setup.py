@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(name='naspi',
-      version='0.1.5',
+      version='0.1.6',
       description='Simple NAS for Raspberry Pi',
       long_description=long_description,
       long_description_content_type='text/markdown',

@@ -1,0 +1,22 @@
+{
+    "disks_list": [],
+    "folder_to_sync_locally": [
+        {
+            "source_folder": "/tmp/naspi_test/srcdir/",
+            "dest_folder": "/tmp/naspi_test/dstdir/",
+            "delete": false
+        }
+    ],
+    "folders_to_sync_s3": [],
+    "naspi_configuration": {
+        "working_dir": "/tmp/naspi_test",
+        "NUMBER_DAYS_RETENTION": 7,
+        "MIN_DELAY_BETWEEN_SYNCS_SECONDS": 14400,
+        "backup": {
+            "files_to_backup": [
+                "/tmp/naspi_test/srcdir/0"
+            ],
+            "backup_location": "/tmp/naspi_test/backup"
+        }
+    }
+}

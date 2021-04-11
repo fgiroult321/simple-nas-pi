@@ -10,7 +10,10 @@ import logging
 import logging.handlers
 import sys, getopt
 import glob
+import shutil
 
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def main():
 
@@ -118,21 +121,21 @@ def main():
         output = get_server_metrics(output)
     if mode == "synclocal":
         output = analyze_local_files(folder_to_sync_locally, output)
-        output = run_local_syncs(folder_to_sync_locally, output)
+        output = run_local_syncs(folder_to_sync_locally,configuration,output)
         output = analyze_local_files(folder_to_sync_locally, output)
         # File stored to s3 once per hour like local sync (TODO can be improved with a dedicated mode and cron)
         res_s3 = write_and_cleanup_output_file_to_s3(output,'archive-fgi')
     if mode == "syncs3":
         output = analyze_s3_files(folders_to_sync_s3, output)
-        output = run_s3_syncs(folders_to_sync_s3, output)
+        output = run_s3_syncs(folders_to_sync_s3,configuration,output)
         output = analyze_s3_files(folders_to_sync_s3, output)  
     if mode == "sync":
-        output = run_s3_syncs(folders_to_sync_s3, output)
-        output = run_local_syncs(folder_to_sync_locally, output)
+        output = run_s3_syncs(folders_to_sync_s3,configuration,output)
+        output = run_local_syncs(folder_to_sync_locally,configuration,output)
     if mode == "analyze" or mode == "sync":
         output = analyze_s3_files(folders_to_sync_s3, output)
         output = analyze_local_files(folder_to_sync_locally, output)
-    result = write_and_cleanup_output_file(output,working_dir)
+    result = write_and_cleanup_output_file(output,configuration)
     # res_s3 = write_and_cleanup_output_file_to_s3(output,'archive-fgi')
 
     logger.info(json.dumps(output))
@@ -160,9 +163,10 @@ def load_configuration(conf_file):
                     dict_conf['naspi_configuration']
                 )
 
-    except FileNotFoundError:
-        logger.info("Conf file not found, provide a file named {}".format(conf_file))
-        sys.exit(2)
+    except FileNotFoundError as e:
+        print("Conf file not found, provide a file named {}".format(conf_file))
+        raise(e)
+        # sys.exit(2)
 
 def today_time():
     today = datetime.today()
@@ -262,7 +266,9 @@ def write_and_cleanup_output_file_to_s3(output,bucket):
                                      )
     return(response)
 
-def write_and_cleanup_output_file(output,working_dir):
+def write_and_cleanup_output_file(output,configuration):
+    NUMBER_DAYS_RETENTION = configuration.get('NUMBER_DAYS_RETENTION')
+    working_dir = configuration.get('working_dir')
     today = today_date()
     f = open("{}/naspi_status_{}.json".format(working_dir,today), "w")
     f.write(json.dumps(output,indent=4))
@@ -311,9 +317,10 @@ def analyze_disks(disks_list,output):
     output['disks']['last_run'] = today_time()
     return(output)
 
-def acquire_sync_lock(output,local_or_s3):
+def acquire_sync_lock(output,local_or_s3,configuration):
     # Make sure only one sync process runs at a time
     can_run = True
+    MIN_DELAY_BETWEEN_SYNCS_SECONDS = configuration.get('MIN_DELAY_BETWEEN_SYNCS_SECONDS')
 
     if 'last_started' in output[local_or_s3]:
         started_time = datetime.strptime(output[local_or_s3]['last_started'], '%Y-%m-%d %H:%M:%S')
@@ -332,15 +339,15 @@ def acquire_sync_lock(output,local_or_s3):
         output[local_or_s3]['last_started'] = today_time()
         logger.info(output)
         # Acquire lock and write it to disk:
-        result = write_and_cleanup_output_file(output,working_dir)
+        result = write_and_cleanup_output_file(output,configuration)
 
     return(can_run,output)
 
 
 
-def run_s3_syncs(folders_to_sync_s3, output):
+def run_s3_syncs(folders_to_sync_s3,configuration, output):
 
-    can_run,output = acquire_sync_lock(output, 's3_sync')
+    can_run,output = acquire_sync_lock(output, 's3_sync',configuration)
 
     if can_run:
         success = True
@@ -403,10 +410,10 @@ def analyze_s3_files(folders_to_sync_s3, output):
         
     return(output)
 
-def run_local_syncs(folder_to_sync_locally, output):
+def run_local_syncs(folder_to_sync_locally,configuration, output):
     # rsync -anv dir1 dir2   # n = dryrun, v = verbose
     # will create dir2/dir1
-    can_run,output = acquire_sync_lock(output, 'local_sync')
+    can_run,output = acquire_sync_lock(output, 'local_sync', configuration)
 
     if can_run:
         success = True
@@ -415,7 +422,7 @@ def run_local_syncs(folder_to_sync_locally, output):
             if folder['delete']:
                 delete = "--delete"
             ret,msg = run_shell_command('mkdir -p {}'.format(folder['dest_folder']))
-            ret,msg = run_shell_command('rsync -aqs {} {} {}'.format(folder['source_folder'],folder['dest_folder'],delete))
+            ret,msg = run_shell_command('rsync -aq {} {} {}'.format(folder['source_folder'],folder['dest_folder'],delete))
             if ret != 0:
                 success = False
 
@@ -465,11 +472,20 @@ def backup_naspi(backup,output):
 
     for entry in files_to_backup:
         if os.path.isdir(entry):
-            ret,msg = run_shell_command('rsync -aqsR {} {}'.format(entry,backup_dir))
+            ret,msg = run_shell_command('rsync -aqR {} {}'.format(entry,backup_dir))
         else:
             subdir = entry.rsplit('/',1)[0]
             ret,msg = run_shell_command('mkdir -p {}{}'.format(backup_dir,subdir))
-            ret,msg = run_shell_command('rsync -aqs {} {}{}'.format(entry,backup_dir,entry))
+            ret,msg = run_shell_command('rsync -aq {} {}{}'.format(entry,backup_dir,entry))
+
+    # old bkp cleanup
+    existing_backup_dir = glob.glob('{}/*'.format(backup_location))
+    existing_backup_dir.sort()
+    for out_file in existing_backup_dir:
+        if out_file not in existing_backup_dir[-10:]:
+            print("Deleting {}".format(out_file))
+            shutil.rmtree(out_file,ignore_errors=True)
+
     return(output)
 
 if __name__=='__main__':

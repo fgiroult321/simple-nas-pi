@@ -7,3 +7,5 @@ naspi/naspi_status_*.json
 naspi/conf.json
 .DS_Store
 aws/import.yml
+*.pyc
+.coverage
