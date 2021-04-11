@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import datetime
+import json
 
 # from naspi import load_configuration
 # naspi = __import__("naspi")
@@ -11,6 +12,9 @@ import naspi.naspi as naspi
 
 import logging
 import sys
+
+import boto3
+from moto import mock_s3
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -205,6 +209,26 @@ class TestAnalyzeLocalFiles(unittest.TestCase):
 
     def tearDown(self):
         shutil.rmtree(path, ignore_errors=True)
+
+class TestSaveS3(unittest.TestCase):
+    global path
+    path = "/tmp/naspi_test"
+
+    @mock_s3
+    def test_write_and_cleanup_output_file_to_s3(self):
+        """
+        Test write_and_cleanup_output_file_to_s3
+        """
+        output = naspi.open_or_init_output_file(path)
+        conn = boto3.resource('s3')
+        # We need to create the bucket since this is all in Moto's 'virtual' AWS account
+        conn.create_bucket(Bucket="mock_bucket")
+        result = naspi.write_and_cleanup_output_file_to_s3(output,"mock_bucket")
+        today = naspi.today_date()
+        key = "status/naspi_status_{}.json".format(today)
+
+        body = json.loads(conn.Object("mock_bucket", key).get()['Body'].read().decode("utf-8"))
+        self.assertEqual(isinstance(body, dict), True)
 
 if __name__ == '__main__':
     unittest.main()
