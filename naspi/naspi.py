@@ -385,7 +385,10 @@ def count_files_in_dir(folder,exclude_list):
 def analyze_s3_files(folders_to_sync_s3, output):
     output['s3_sync']['files_source'] = 0
     output['s3_sync']['files_dest'] = 0
+    output['s3_sync']['folders'] = []
     for folder in folders_to_sync_s3:
+        one_folder = {}
+        one_folder['source_folder'] = folder['source_folder']
         # Get local files count
         if 'exclude' in folder:
             exclude_directories = set(folder['exclude'])    #directory (only names) want to exclude
@@ -398,12 +401,16 @@ def analyze_s3_files(folders_to_sync_s3, output):
             total_file += len(files)
 
         logger.info("Files in {} : {}".format(folder['source_folder'],total_file))
-
+        one_folder['source_count'] = total_file
         output['s3_sync']['files_source'] += total_file
 
         # Get s3 files count
         ret,msg = run_shell_command('{}; aws s3 ls {} --recursive --summarize | grep "Total Objects"'.format(export_path_cmd,folder['dest_folder']))
         output['s3_sync']['files_dest'] += int(msg.split(': ')[1])
+        one_folder['dest_folder'] = folder['dest_folder']
+        one_folder['dest_count'] = int(msg.split(': ')[1])
+        output['s3_sync']['folders'].append(one_folder)
+
 
     output['s3_sync']['files_delta'] = output['s3_sync']['files_source'] - output['s3_sync']['files_dest']
 
@@ -437,12 +444,22 @@ def run_local_syncs(folder_to_sync_locally,configuration, output):
 def analyze_local_files(folder_to_sync_locally, output):
     output['local_sync']['files_source'] = 0
     output['local_sync']['files_dest'] = 0
+    output['local_sync']['folders'] = []
 
     for folder in folder_to_sync_locally:
-        output['local_sync']['files_source'] += count_files_in_dir(folder['source_folder'],[''])
+        one_folder = {}
+        one_folder['source_folder'] = folder['source_folder']
+        src_count = count_files_in_dir(folder['source_folder'],[''])
+        output['local_sync']['files_source'] += src_count
+        one_folder['source_count'] = src_count
 
         dest_folder = "{}/{}".format(folder['dest_folder'],folder['source_folder'].split("/")[-1])
-        output['local_sync']['files_dest'] += count_files_in_dir(dest_folder,[''])
+        one_folder['dest_folder'] = dest_folder
+        dest_count = count_files_in_dir(dest_folder,[''])
+        output['local_sync']['files_dest'] += dest_count
+        one_folder['dest_count'] = dest_count
+
+        output['local_sync']['folders'].append(one_folder)
 
     output['local_sync']['files_delta'] = output['local_sync']['files_source'] - output['local_sync']['files_dest']        
 
