@@ -414,6 +414,7 @@ def analyze_s3_files(folders_to_sync_s3, output):
 
     output['s3_sync']['files_delta'] = output['s3_sync']['files_source'] - output['s3_sync']['files_dest']
 
+    logger.info("Analyze s3 file output : {}".format(json.dumps(output)))
         
     return(output)
 
@@ -461,7 +462,9 @@ def analyze_local_files(folder_to_sync_locally, output):
 
         output['local_sync']['folders'].append(one_folder)
 
-    output['local_sync']['files_delta'] = output['local_sync']['files_source'] - output['local_sync']['files_dest']        
+    output['local_sync']['files_delta'] = output['local_sync']['files_source'] - output['local_sync']['files_dest']  
+
+    logger.info("Analyze local file output : {}".format(json.dumps(output)))      
 
     return(output)
 
