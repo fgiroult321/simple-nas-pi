@@ -222,7 +222,7 @@ class TestSaveS3(unittest.TestCase):
         output = naspi.open_or_init_output_file(path)
         conn = boto3.resource('s3')
         # We need to create the bucket since this is all in Moto's 'virtual' AWS account
-        conn.create_bucket(Bucket="mock_bucket")
+        conn.create_bucket(Bucket="mock_bucket",CreateBucketConfiguration={'LocationConstraint': 'eu-west-1'})
         result = naspi.write_and_cleanup_output_file_to_s3(output,"mock_bucket")
         today = naspi.today_date()
         key = "status/naspi_status_{}.json".format(today)

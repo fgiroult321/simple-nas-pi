@@ -123,6 +123,11 @@ Resources:
               today = datetime.today()
               d1 = today.strftime("%Y-%m-%d")
               return(d1)
+
+          def day_of_week():
+              today = datetime.today()
+              d1 = today.weekday()
+              return(d1)           
               
           def lambda_handler(event, context):
               
@@ -152,6 +157,10 @@ Resources:
                       raise(e)
                   
               print("File {} exists, ok".format(key))
+
+              if day_of_week() == 5:
+                  j = json.loads(obj['Body'].read())
+                  send_alert("Naspi Weekly report : {}".format(today_date()),"{}".format(json.dumps(j,indent=4)),snstopic)
               
               return {
                   'statusCode': 200,
