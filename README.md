@@ -29,6 +29,8 @@ The different mode of the Cli are :
   - return system information cpu, ram, temp
 * naspi -c /path/to/conf.json **-m backup** 
   - backup specific files or folders as set in the backup section of the config file
+* naspi -c /path/to/conf.json **-m osbackup** 
+  - backup the entire sd card to an .img.gz archive file
 
 ### Status file
 Each run of the CLI updates a status file you will find in the tool working dir. It gives information on the syncronization status, server metrics, disks health and usage etc..
@@ -118,7 +120,8 @@ Initially the config file is :
         "MIN_DELAY_BETWEEN_SYNCS_SECONDS": 14400,
         "backup": {
             "files_to_backup": [],
-            "backup_location": ""
+            "backup_location": "",
+            "os_backup_location": ""
         }
     }
 }
@@ -177,7 +180,8 @@ Initially the config file is :
             "/home/pi",
             "/etc/samba/smb.conf"
         ],
-        "backup_location": "/disks/disk1/backups/"
+        "backup_location": "/disks/disk1/backups/",
+        "os_backup_location": "/disks/disk1/osbackups/"
     }
 }
 ```       

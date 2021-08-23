@@ -9,3 +9,5 @@ naspi/conf.json
 aws/import.yml
 *.pyc
 .coverage
+.vscode/settings.json
+.gitignore

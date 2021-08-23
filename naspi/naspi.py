@@ -33,10 +33,10 @@ def main():
     #### exception handling in logger:
     sys.excepthook = handle_exception
 
-    valid_modes = ["system","analyze","sync","syncdelete","synclocal","syncs3","backup","init_config"]
+    valid_modes = ["system","analyze","sync","syncdelete","synclocal","syncs3","backup","osbackup","init_config"]
     mode = ''
     config = ''
-    usage_message = 'naspi -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|init_config>'
+    usage_message = 'naspi -c /path/to/config.json -m <system|analyze|sync|syncdelete|synclocal|syncs3|backup|osbackup|init_config>'
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],"hm:c:",["mode=","config="])
@@ -116,6 +116,8 @@ def main():
     output = open_or_init_output_file(working_dir)
     if mode == "backup":
         output = backup_naspi(configuration['backup'],output)
+    if mode == "osbackup":
+        output = os_backup(configuration['backup'],output)
     if mode == "system":
         output = analyze_disks(disks_list,output)
         output = get_server_metrics(output)
@@ -249,6 +251,7 @@ def init_config_file(file_name):
         dict_conf['naspi_configuration']['backup'] = {}
         dict_conf['naspi_configuration']['backup']['files_to_backup'] = []
         dict_conf['naspi_configuration']['backup']['backup_location'] = ""
+        dict_conf['naspi_configuration']['backup']['os_backup_location'] = ""
 
         f = open("{}".format(file_name), "w")
         f.write(json.dumps(dict_conf,indent=4))
@@ -503,6 +506,33 @@ def backup_naspi(backup,output):
     existing_backup_dir.sort()
     for out_file in existing_backup_dir:
         if out_file not in existing_backup_dir[-10:]:
+            print("Deleting {}".format(out_file))
+            shutil.rmtree(out_file,ignore_errors=True)
+
+    return(output)
+
+def os_backup(backup,output):
+    os_backup_location = backup.get('os_backup_location')
+    backup_name = "osbkp-{}.img".format(today_date())
+
+    # sudo dd if=/dev/mmcblk0 of=/disks/Elements/os_bkp/osbkp18082021.img bs=1M
+    # sudo ./pishrink.sh -z osbkp18082021.img
+
+    ret,msg = run_shell_command('sudo dd if=/dev/mmcblk0 of={}/{} bs=1M'.format(os_backup_location,backup_name))
+
+    if not os.path.exists("{}/pishrink.sh".format(working_dir)):
+        ret,msg = run_shell_command('wget https://raw.githubusercontent.com/Drewsif/PiShrink/master/pishrink.sh -P {}'.format(working_dir))
+        # wget https://raw.githubusercontent.com/Drewsif/PiShrink/master/pishrink.sh
+        ret,msg = run_shell_command('sudo chmod +x {}/pishrink.sh'.format(working_dir))
+        # sudo chmod +x pishrink.sh
+
+    ret,msg = run_shell_command('sudo bash {}/pishrink.sh -z {}/{}'.format(working_dir,os_backup_location,backup_name))
+
+    # old bkp cleanup
+    existing_backup_dir = glob.glob('{}/*'.format(os_backup_location))
+    existing_backup_dir.sort()
+    for out_file in existing_backup_dir:
+        if out_file not in existing_backup_dir[-4:]:
             print("Deleting {}".format(out_file))
             shutil.rmtree(out_file,ignore_errors=True)
 
