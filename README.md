@@ -195,6 +195,7 @@ Export the path with your local user to make the naspi command available
     32 17 * * * export PATH=/home/pi/.local/bin:$PATH && naspi -c /home/pi/naspi/naspi_config.json -m syncs3
     06 * * * * export PATH=/home/pi/.local/bin:$PATH && naspi -c /home/pi/naspi/naspi_config.json -m synclocal
     */10 * * * * export PATH=/home/pi/.local/bin:$PATH && naspi -c /home/pi/naspi/naspi_config.json -m system
+    11 3 * * 2 export PATH=/home/pi/.local/bin:$PATH && naspi -c /home/pi/nas_monitor/naspi_config.json -m osbackup
     ```
 ### Deploy resources in AWS account
 Several resources are deployed in AWS : S3 bucket, user, monitoring lambda functions, SNS topic for email notifications.
