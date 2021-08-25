@@ -527,6 +527,7 @@ def os_backup(backup,output):
         # sudo chmod +x pishrink.sh
 
     ret,msg = run_shell_command('sudo bash {}/pishrink.sh -z {}/{}'.format(working_dir,os_backup_location,backup_name))
+    ret,msg = run_shell_command('sudo chown pi:pi *.img.gz')
 
     # old bkp cleanup
     existing_backup_dir = glob.glob('{}/*'.format(os_backup_location))
